@@ -51,12 +51,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Email.cs" />
     <Compile Include="ErrorCheck.cs">
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="ErrorCheck.Designer.cs">
       <DependentUpon>ErrorCheck.cs</DependentUpon>
     </Compile>
+    <Compile Include="ErrorCheckWorker.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="ProjectInstaller.cs">
       <SubType>Component</SubType>
