@@ -28,15 +28,26 @@ namespace ErrorCheckService
             to = ConfigurationManager.AppSettings["emailTo"];
         }
 
-        public Boolean Send(string subject, string body)
+        public Boolean Send(string subject, string body, string attachmentLocation)
         {
             try
             {
+                MailMessage mail = new MailMessage();
+                mail.From = new MailAddress(from);
+                mail.To.Add(to);
+                mail.Subject = subject;
+                mail.Body = body;
+                if (!string.IsNullOrEmpty(attachmentLocation))
+                {
+                    Attachment attachment = new Attachment(attachmentLocation);
+                    mail.Attachments.Add(attachment);
+                }
+                
                 using (SmtpClient client = new SmtpClient(smtpServer, smtpPort)
                 {
                     Credentials = new NetworkCredential(smtpUser, smtpPass),
                     EnableSsl = true
-                }) client.Send(from, to, subject, body);
+                }) client.Send(mail);
                 return true;
             }
             catch (Exception e)
