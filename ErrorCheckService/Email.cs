@@ -18,12 +18,12 @@ namespace ErrorCheckService
         private string from;
         private string to;
 
-        Email()
+        public Email()
         {
             smtpServer = ConfigurationManager.AppSettings["smtpServer"];
-            smtpUser = ConfigurationManager.AppSettings["smtpUser"];
-            smtpPass = ConfigurationManager.AppSettings["smtpPass"];
-            smtpPort = Convert.ToInt32(ConfigurationManager.AppSettings["smtpPort"]);
+            // smtpUser = ConfigurationManager.AppSettings["smtpUser"];
+            // smtpPass = ConfigurationManager.AppSettings["smtpPass"];
+            // smtpPort = Convert.ToInt32(ConfigurationManager.AppSettings["smtpPort"]);
             from = ConfigurationManager.AppSettings["emailFrom"];
             to = ConfigurationManager.AppSettings["emailTo"];
         }
@@ -42,12 +42,20 @@ namespace ErrorCheckService
                     Attachment attachment = new Attachment(attachmentLocation);
                     mail.Attachments.Add(attachment);
                 }
-                
+                /*
                 using (SmtpClient client = new SmtpClient(smtpServer, smtpPort)
                 {
                     Credentials = new NetworkCredential(smtpUser, smtpPass),
                     EnableSsl = true
                 }) client.Send(mail);
+                 * */
+
+                using (SmtpClient client = new SmtpClient(smtpServer)
+                {
+                    UseDefaultCredentials = true,
+                    EnableSsl = true
+                }) client.Send(mail);
+
                 return true;
             }
             catch (Exception e)

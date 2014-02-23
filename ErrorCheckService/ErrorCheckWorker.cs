@@ -29,6 +29,16 @@ namespace ErrorCheckService
             EventLog.WriteEntry("Application", "OnStart() Started", EventLogEntryType.Information);
             try
             {
+                Email email = new Email();
+                email.Send("Testing Error Check Service", "This is the Body of the Email", null);
+            }
+            catch (Exception ex)
+            {
+                EventLog.WriteEntry("Application", "Email issue", EventLogEntryType.Error);     
+            }
+
+            try
+            {
                 // Notify that the application service has started
                 log.Info("INFO : Error check service started.");
 
