@@ -26,22 +26,9 @@ namespace ErrorCheckService
         /// </summary>
         public void DoWork()
         {
-            EventLog.WriteEntry("Application", "OnStart() Started", EventLogEntryType.Information);
+            EventLog.WriteEntry("ErrorCheckService", "service started", EventLogEntryType.Information);
             try
             {
-                Email email = new Email();
-                email.Send("Testing Error Check Service", "This is the Body of the Email", null);
-            }
-            catch (Exception ex)
-            {
-                EventLog.WriteEntry("Application", "Email issue", EventLogEntryType.Error);     
-            }
-
-            try
-            {
-                // Notify that the application service has started
-                log.Info("INFO : Error check service started.");
-
                 // read and assign private variables
                 rootDirectory = ConfigurationManager.AppSettings["rootDirectory"];
                 startHour = Convert.ToDouble(ConfigurationManager.AppSettings["startHour"]);
@@ -91,36 +78,100 @@ namespace ErrorCheckService
         // Define the event handlers. 
         private static void ProcessDirectory(object obj)
         {
-            log.Info("ProcessDirectory : " + rootDirectory);
             EventLog.WriteEntry("Application", "ProcessDirectory : " + rootDirectory, EventLogEntryType.Information);
             try
             {
-                ArrayList validDirectories = GetDirectories(rootDirectory);
+                // get the list of folders
+                List<DirectoryInfo> validDirectories = GetDirectories(rootDirectory);
+                // sort them in the order of the Creation time
+                validDirectories.Sort((x, y) => StringComparer.OrdinalIgnoreCase.Compare(x.CreationTime, y.CreationTime));
+                validDirectories.Reverse();
 
-                foreach (string dir in validDirectories)
+                // get all pdf files in the directory.
+                string[] filesArray = Directory.GetFiles(validDirectories[0].FullName, "*.pdf");
+
+                // remove duplicate file versions from the array
+                List<string> cleanedFilesList = CleanFilesList(filesArray);
+                cleanedFilesList.Sort();
+
+                string dirName = validDirectories[0].FullName;
+                int countWithDuplicates = filesArray.Length;
+                int countWithoutDuplicates = cleanedFilesList.Count;
+                string fileNameTemplate = cleanedFilesList[0].Substring(cleanedFilesList[0].LastIndexOf('\\') + 1);
+
+
+                List<Int32> missing = new List<int>();
+
+                // Find the missing array items
+                for (var i = 0; i < cleanedFilesList.Count - 1; i++)
                 {
-                    int fileCount = 0;
-                    // get all pdf files in the directory.
-                    string[] filesArray = Directory.GetFiles(dir, "*.pdf");
-                    // remove duplicate file versions from the array
-                    ArrayList cleanedFilesList = CleanFilesList(filesArray);
-                    // now get the files count
-                    fileCount = cleanedFilesList.Count;
-                    // do the logic here
-                    if (fileCount % 4 != 0)
-                    {
-                        // errors found (send the email)
-                    }
-                    else
-                    {
-                        // no errors found
-                    }
+                    Int32 numThis = 0;
+                    if (i != 0) numThis = Convert.ToInt32(cleanedFilesList[i].Substring(cleanedFilesList[i].LastIndexOf('\\') + 1).Substring(2, 2));
 
-                    log.Info("BEFORE : " + filesArray.Length + " | AFTER : " + cleanedFilesList.Count);
-                    EventLog.WriteEntry("Application", "BEFORE : " + filesArray.Length + " | AFTER : " + cleanedFilesList.Count, EventLogEntryType.Information);
-                    foreach (string file in filesArray)
+                    Int32 numNext = Convert.ToInt32(cleanedFilesList[i].Substring(cleanedFilesList[i].LastIndexOf('\\') + 1).Substring(2, 2));
+                    if (i != 0) numNext = Convert.ToInt32(cleanedFilesList[i + 1].Substring(cleanedFilesList[i + 1].LastIndexOf('\\') + 1).Substring(2, 2));
+
+                    Int32 diff = numNext - numThis;
+                    Int32 count = 0;
+
+                    while ((diff - count) > 1)
                     {
-                        log.Info(file);
+                        missing.Add(numThis + count + 1);
+                        count++;
+                    }
+                }
+
+                if (missing.Count != 0)
+                {
+                    // errors found
+                    try
+                    {
+                        string missingFilesString = "";
+                        foreach (int i in missing)
+                        {
+                            if (i < 10) missingFilesString = missingFilesString += (Environment.NewLine + "\t A_0" + i + "_...");
+                            else missingFilesString = missingFilesString += (Environment.NewLine + "\t A_" + i + "_...");
+                        }
+
+                        string emailSubject = "Buy and Read : Issues notification (" +
+                                              DateTime.Now.ToString("MM\\/dd\\/yyyy h\\:mm tt") + ")";
+
+                        string emailBody = "Status For \t\t: " + dirName + Environment.NewLine + Environment.NewLine +
+                                           "Files Processed \t\t: " + countWithDuplicates + Environment.NewLine +
+                                           "Duplicated Found \t\t: " + (countWithDuplicates - countWithoutDuplicates) +
+                                           Environment.NewLine +
+                                           "Errors Found \t\t: " + "TRUE" + Environment.NewLine +
+                                           "Missing Files \t\t: " + missingFilesString;
+
+                        Console.WriteLine(emailBody);
+                        Email email = new Email();
+                        email.Send(emailSubject, emailBody, null);
+                    }
+                    catch (Exception ex)
+                    {
+                        EventLog.WriteEntry("Application", "Email issue", EventLogEntryType.Error);
+                    }
+                }
+                else
+                {
+                    // no errors found
+                    try
+                    {
+                        string emailSubject = "Buy and Read : Issues notification (" +
+                                              DateTime.Now.ToString("MM\\/dd\\/yyyy h\\:mm tt") + ")";
+
+                        string emailBody = "Status For \t\t: " + dirName + Environment.NewLine + Environment.NewLine +
+                                           "Files Processed \t\t: " + countWithDuplicates + Environment.NewLine +
+                                           "Duplicated Found \t\t: " + (countWithDuplicates - countWithoutDuplicates) +
+                                           Environment.NewLine +
+                                           "Errors Found \t\t: " + "FALSE" + Environment.NewLine;
+
+                        Email email = new Email();
+                        email.Send(emailSubject, emailBody, null);
+                    }
+                    catch (Exception ex)
+                    {
+                        EventLog.WriteEntry("Application", "Email issue", EventLogEntryType.Error);
                     }
                 }
             }
@@ -136,14 +187,14 @@ namespace ErrorCheckService
         /// </summary>
         /// <param name="rootDirectory"></param>
         /// <returns></returns>               
-        static private ArrayList GetDirectories(string rootDirectory)
+        static private List<DirectoryInfo> GetDirectories(string rootDirectory)
         {
-            ArrayList directoriesList = new ArrayList();
+            List<DirectoryInfo> directoriesList = new List<DirectoryInfo>();
             Regex regex = new Regex(@"\d\d-\d\d-\d\d");
             var directories = Directory.GetDirectories(rootDirectory).Select(directory => new DirectoryInfo(directory)).Where(directory => regex.IsMatch(directory.Name));
             foreach (var directoryInfo in directories.ToArray())
             {
-                directoriesList.Add(directoryInfo.FullName);
+                directoriesList.Add(directoryInfo);
             }
             return directoriesList;
         }
@@ -153,10 +204,10 @@ namespace ErrorCheckService
         /// </summary>
         /// <param name="rowFiles"></param>
         /// <returns></returns>
-        static private ArrayList CleanFilesList(string[] rowFiles)
+        static private List<string> CleanFilesList(string[] rowFiles)
         {
-            ArrayList cleanFilesList = new ArrayList();
-            ArrayList prefixList = new ArrayList();
+            List<string> cleanFilesList = new List<string>();
+            List<string> prefixList = new List<string>();
             string fileName;
             string prefix;
             foreach (string fileDirectory in rowFiles)

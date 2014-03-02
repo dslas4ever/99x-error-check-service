@@ -11,21 +11,15 @@ namespace ErrorCheckService
 {
     class Email
     {
-        private string smtpServer;  // "smtp.gmail.com"
-        private string smtpUser;    // smtp user
-        private string smtpPass;    // smtp pass
-        private int smtpPort;       // 587
+        private string smtpServer;
         private string from;
-        private string to;
+        private string[] to;
 
         public Email()
         {
             smtpServer = ConfigurationManager.AppSettings["smtpServer"];
-            // smtpUser = ConfigurationManager.AppSettings["smtpUser"];
-            // smtpPass = ConfigurationManager.AppSettings["smtpPass"];
-            // smtpPort = Convert.ToInt32(ConfigurationManager.AppSettings["smtpPort"]);
             from = ConfigurationManager.AppSettings["emailFrom"];
-            to = ConfigurationManager.AppSettings["emailTo"];
+            to = ConfigurationManager.AppSettings["emailTo"].Split(';');
         }
 
         public Boolean Send(string subject, string body, string attachmentLocation)
@@ -34,7 +28,10 @@ namespace ErrorCheckService
             {
                 MailMessage mail = new MailMessage();
                 mail.From = new MailAddress(from);
-                mail.To.Add(to);
+                foreach (var email in to)
+                {
+                    mail.To.Add(email);
+                }
                 mail.Subject = subject;
                 mail.Body = body;
                 if (!string.IsNullOrEmpty(attachmentLocation))
@@ -42,20 +39,7 @@ namespace ErrorCheckService
                     Attachment attachment = new Attachment(attachmentLocation);
                     mail.Attachments.Add(attachment);
                 }
-                /*
-                using (SmtpClient client = new SmtpClient(smtpServer, smtpPort)
-                {
-                    Credentials = new NetworkCredential(smtpUser, smtpPass),
-                    EnableSsl = true
-                }) client.Send(mail);
-                 * */
-
-                using (SmtpClient client = new SmtpClient(smtpServer)
-                {
-                    UseDefaultCredentials = true,
-                    EnableSsl = true
-                }) client.Send(mail);
-
+                using (SmtpClient client = new SmtpClient(smtpServer)) client.Send(mail);
                 return true;
             }
             catch (Exception e)
